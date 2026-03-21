@@ -1,6 +1,7 @@
 ---
 name: jsf-workflow
 description: Software factory master workflow — use when starting or orchestrating a full factory run, coordinating clarification → spec → TDD implementation → validation phases.
+version: 0.1.0
 ---
 
 # Software Factory Workflow
@@ -9,17 +10,26 @@ description: Software factory master workflow — use when starting or orchestra
 
 Every factory task follows this sequence. Do not skip or reorder phases.
 
-1. **Intake** — Accept the request. Run `gc` on memory. Read `list-keys` to check for an in-progress task.
-2. **Clarification** — Dispatch the clarifier agent. Do not proceed until `clarification_summary` is in memory.
-3. **Spec + Plan** — Dispatch the planner agent. Do not proceed until `implementation_plan` is in memory.
+**Memory operations** are always direct Bash calls — never dispatched as agents. Use `jsf-memory-protocol` skill for the exact commands.
+
+**Agent dispatch** uses the `Agent` tool with these `subagent_type` values:
+- Clarifier: `jsf:jsf-clarifier`
+- Planner: `jsf:jsf-planner`
+- Implementer: `jsf:jsf-implementer`
+- Reviewer: `jsf:jsf-reviewer`
+- Validator: `jsf:jsf-validator`
+
+1. **Intake** — Accept the request. Run `gc` via Bash (`memory.py gc`). Run `list-keys` via Bash to check for an in-progress task.
+2. **Clarification** — Dispatch agent `jsf:jsf-clarifier`. Do not proceed until `clarification_summary` is in memory.
+3. **Spec + Plan** — Dispatch agent `jsf:jsf-planner`. Do not proceed until `implementation_plan` is in memory.
 4. **Implementation phases** — For each phase in the plan (in order, unless marked parallel):
    a. Commit current state as a checkpoint: `git commit -m "checkpoint: before <phase>"`
-   b. Write `phase_start:<name>` to memory
-   c. Dispatch the implementer agent for this phase
-   d. When `phase_complete:<name>` appears in memory, dispatch the reviewer agent
-   e. When `review_result:<name>` is approved, run the validation gate
+   b. Write `phase_start:<name>` to memory via Bash
+   c. Dispatch agent `jsf:jsf-implementer` for this phase
+   d. When `phase_complete:<name>` appears in memory, dispatch agent `jsf:jsf-reviewer`
+   e. When `review_result:<name>` is approved, dispatch agent `jsf:jsf-validator`
    f. When `validation_confirmed:<name>` is in memory, commit: `git commit -m "feat: complete phase <name>"`
-5. **Done** — All phases complete. Write `workflow_complete` to memory with summary.
+5. **Done** — All phases complete. Write `workflow_complete` to memory via Bash with summary.
 
 ## Config Layering
 
