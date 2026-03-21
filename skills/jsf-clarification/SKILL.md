@@ -1,6 +1,7 @@
 ---
 name: jsf-clarification
 description: Software factory clarification — use when gathering requirements before planning. Runs structured Q&A to produce a confirmed clarification summary.
+version: 0.1.0
 ---
 
 # Clarification

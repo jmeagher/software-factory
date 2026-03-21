@@ -2,7 +2,7 @@
 description: Resume a software factory workflow from the last memory checkpoint
 ---
 
-Read factory memory: call `list-keys`, then fetch each relevant key.
+Read factory memory via Bash (`memory.py list-keys`, then `memory.py read --key <key>` for each relevant key).
 
 Identify the most recent incomplete phase (exists in `implementation_plan` but lacks `validation_confirmed:<name>`).
 
