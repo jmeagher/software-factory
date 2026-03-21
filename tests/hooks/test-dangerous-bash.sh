@@ -37,11 +37,14 @@ check_blocked "find exec rm"       "find . -exec rm -rf {} +"
 check_blocked "dd to block device" "dd if=/dev/zero of=/dev/sda"
 check_blocked "mkfs"               "mkfs.ext4 /dev/sdb1"
 check_blocked "fork bomb"          ":(){ :|:& };:"
+check_blocked "rm -rf quoted var"  'rm -rf "$HOME/tmp"'
+check_blocked "rm -rf eval"        'eval "rm -rf /"'
 
 # Must be allowed
 check_allowed "rm single file"     "rm /tmp/foo.txt"
 check_allowed "rm -f single file"  "rm -f /tmp/foo.txt"
 check_allowed "normal find"        "find . -name '*.py'"
+check_allowed "dd file to file"    "dd if=input.bin of=output.bin"
 
 echo ""
 echo "Results: $PASS passed, $FAIL failed"
