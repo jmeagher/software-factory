@@ -119,7 +119,7 @@ software-factory/
   "plugins": [
     {
       "name": "jsf",
-      "source": ".",
+      "source": "./",
       "description": "Software factory plugin: clarification, planning, TDD implementation, validation gates, and memory coordination.",
       "license": "MIT"
     }
