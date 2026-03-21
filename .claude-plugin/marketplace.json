@@ -1,0 +1,17 @@
+{
+  "name": "jsf",
+  "owner": {
+    "name": "jmeagher"
+  },
+  "metadata": {
+    "description": "John's Software Factory — takes projects from idea to implementation via phased, validated workflow."
+  },
+  "plugins": [
+    {
+      "name": "jsf",
+      "source": "./",
+      "description": "Software factory plugin: clarification, planning, TDD implementation, validation gates, and memory coordination.",
+      "license": "MIT"
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/block-dangerous-bash.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/block-dangerous-git.sh",
+            "timeout": 5
+          },
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/scripts/block-dangerous-sql.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ],
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -z \"${OTEL_EXPORTER_OTLP_ENDPOINT}\" ] && export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317; [ -z \"${SF_OTEL_ENABLED}\" ] && export SF_OTEL_ENABLED=1; true",
+            "async": true
+          }
+        ]
+      }
+    ]
+  }
+}

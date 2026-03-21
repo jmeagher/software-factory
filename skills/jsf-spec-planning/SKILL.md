@@ -1,0 +1,41 @@
+---
+name: jsf-spec-planning
+description: Software factory spec and planning — use when producing a technical spec and phased implementation plan after clarification is confirmed.
+---
+
+# Spec and Planning
+
+## Input
+
+Read `clarification_summary` from memory. Do not begin without it.
+
+## Technical Spec
+
+Produce a document with these sections:
+
+1. **Problem** — What is being solved and why
+2. **Constraints** — Tech stack, performance, security, compliance
+3. **Architecture** — How it fits into the existing system; new components and their responsibilities
+4. **Data model changes** — New tables/schemas/fields, if any
+5. **API surface** — New or changed endpoints/functions/interfaces
+6. **Security considerations** — Auth, input validation, data exposure
+7. **Manual validation triggers** — List each change type that requires manual review
+
+## Implementation Plan
+
+Ordered list of phases. Each phase:
+- `name`: kebab-case identifier
+- `description`: what it builds
+- `tests_first`: what failing tests to write (specific function/class names)
+- `files`: exact files to create or modify
+- `parallel`: true if this phase can run concurrently with another (name which)
+- `manual_validation`: true/false and trigger reason if true
+- `commit_message`: the git commit message for when this phase is complete
+
+## User Confirmation
+
+Present both documents. Incorporate feedback. Do not write to memory until user explicitly confirms.
+
+Write to memory:
+- `spec_document` — the full spec
+- `implementation_plan` — the confirmed plan as a JSON array of phase objects

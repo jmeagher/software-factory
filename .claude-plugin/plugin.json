@@ -1,0 +1,7 @@
+{
+  "name": "jsf",
+  "version": "0.1.0",
+  "description": "John's Software Factory — takes projects from idea to implementation via phased, validated workflow.",
+  "author": { "name": "jmeagher" },
+  "license": "MIT"
+}
