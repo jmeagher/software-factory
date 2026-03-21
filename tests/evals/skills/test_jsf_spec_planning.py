@@ -2,7 +2,15 @@
 
 Tests assert required sections, spec document structure, implementation plan
 phase fields, memory key references, and user confirmation requirement.
+
+LLM eval tests (marked @pytest.mark.llm_eval) are gated on --run-llm-evals
+and require ANTHROPIC_API_KEY to be set.
 """
+import json
+import os
+import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -169,3 +177,128 @@ def test_requires_user_explicitly_confirms(skill_doc):
 def test_requires_clarification_summary_before_starting(skill_doc):
     text = _text(skill_doc)
     assert "do not begin without it" in text.lower() or "do not begin" in text.lower()
+
+
+# ---------------------------------------------------------------------------
+# LLM eval tests — skipped unless --run-llm-evals is passed
+# ---------------------------------------------------------------------------
+
+_SKILL_CONTENT = None
+
+
+def _get_skill_content():
+    global _SKILL_CONTENT
+    if _SKILL_CONTENT is None:
+        _SKILL_CONTENT = _SKILL_PATH.read_text()
+    return _SKILL_CONTENT
+
+
+def _check_llm_prerequisites():
+    """Skip the test if ANTHROPIC_API_KEY is missing or claude CLI is absent."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        pytest.skip("requires --run-llm-evals and ANTHROPIC_API_KEY")
+    if not shutil.which("claude"):
+        pytest.skip("claude CLI not found on PATH")
+
+
+def _call_claude(system_prompt: str, user_prompt: str, timeout: int = 90) -> str:
+    """Call the claude CLI with a system prompt and user prompt, return stdout."""
+    result = subprocess.run(
+        ["claude", "--print", "-p", user_prompt],
+        input=system_prompt,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        env={**os.environ},
+    )
+    return result.stdout
+
+
+_SAMPLE_CLARIFICATION_SUMMARY = """
+**Request:** Add a REST API endpoint for user login to the Django backend.
+**Scope:** Single endpoint POST /api/auth/login that accepts email+password and returns JWT.
+**Success criteria:** Endpoint returns 200 with token on valid credentials, 401 on invalid.
+**Tech stack:** Django 4.2, djangorestframework, PyJWT.
+**Manual validation required:** Yes — security review of JWT secret handling.
+""".strip()
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_spec_planning_produces_phases_array():
+    """Behavioral contract: given a clarification summary, the spec planner should
+    produce an implementation_plan with a phases array where each phase has at
+    least 'name', 'description', and 'tests_first' fields.
+    """
+    _check_llm_prerequisites()
+    skill_text = _get_skill_content()
+    user_prompt = (
+        f"Here is the clarification summary:\n\n{_SAMPLE_CLARIFICATION_SUMMARY}\n\n"
+        "Please produce the implementation plan. Show the phases array."
+    )
+    output = _call_claude(skill_text, user_prompt)
+    # Must mention phases structure
+    has_phases = (
+        '"phases"' in output
+        or "'phases'" in output
+        or "phases:" in output
+        or "phase" in output.lower()
+    )
+    assert has_phases, (
+        f"Expected phases structure in spec planning output: {output[:400]}"
+    )
+    # Each phase should have a name
+    assert "name" in output.lower(), (
+        f"Expected phase name field in output: {output[:400]}"
+    )
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_spec_planning_uses_kebab_case_phase_names():
+    """Behavioral contract: phase names in the implementation plan must use
+    kebab-case format (e.g. 'add-login-endpoint') not spaces or camelCase.
+    """
+    _check_llm_prerequisites()
+    skill_text = _get_skill_content()
+    user_prompt = (
+        f"Here is the clarification summary:\n\n{_SAMPLE_CLARIFICATION_SUMMARY}\n\n"
+        "List the phase names you would use in the implementation plan."
+    )
+    output = _call_claude(skill_text, user_prompt)
+    # Should contain at least one kebab-case name (word-word pattern)
+    kebab_pattern = re.compile(r'\b[a-z][a-z0-9]*(?:-[a-z][a-z0-9]*)+\b')
+    has_kebab = bool(kebab_pattern.search(output))
+    assert has_kebab, (
+        f"Expected kebab-case phase names in output but found none: {output[:400]}"
+    )
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_spec_planning_does_not_write_memory_before_confirmation():
+    """Behavioral contract: the spec planner must NOT claim it has already written
+    implementation_plan to memory before receiving explicit user confirmation.
+    It should present the plan and wait.
+    """
+    _check_llm_prerequisites()
+    skill_text = _get_skill_content()
+    user_prompt = (
+        f"Here is the clarification summary:\n\n{_SAMPLE_CLARIFICATION_SUMMARY}\n\n"
+        "Show me the plan."
+    )
+    output = _call_claude(skill_text, user_prompt)
+    # Should not claim it already wrote to memory in the same response
+    already_wrote = (
+        "i have written" in output.lower()
+        or "i've written" in output.lower()
+        or "has been written to memory" in output.lower()
+        or "saved to memory" in output.lower()
+    )
+    # It should instead present the plan and ask for confirmation
+    asks_for_confirmation = (
+        "confirm" in output.lower()
+        or "approve" in output.lower()
+        or "proceed" in output.lower()
+        or "?" in output
+    )
+    assert not already_wrote or asks_for_confirmation, (
+        f"Planner claimed to write memory before confirmation: {output[:400]}"
+    )

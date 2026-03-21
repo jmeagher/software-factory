@@ -2,7 +2,13 @@
 
 Tests assert required sections, trace architecture terms, memory key
 references, span name table, and script path existence.
+
+LLM eval tests (marked @pytest.mark.llm_eval) are gated on --run-llm-evals
+and require ANTHROPIC_API_KEY to be set.
 """
+import os
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -188,3 +194,97 @@ def test_simple_span_processor_mentioned(skill_doc):
 def test_no_state_held_between_calls(skill_doc):
     text = _text(skill_doc)
     assert "no state" in text.lower() or "stateless" in text.lower()
+
+
+# ---------------------------------------------------------------------------
+# LLM eval tests — skipped unless --run-llm-evals is passed
+# ---------------------------------------------------------------------------
+
+def _check_llm_prerequisites():
+    """Skip the test if ANTHROPIC_API_KEY is missing or claude CLI is absent."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        pytest.skip("requires --run-llm-evals and ANTHROPIC_API_KEY")
+    if not shutil.which("claude"):
+        pytest.skip("claude CLI not found on PATH")
+
+
+def _call_claude(system_prompt: str, user_prompt: str, timeout: int = 60) -> str:
+    """Call the claude CLI with a system prompt and user prompt, return stdout."""
+    result = subprocess.run(
+        ["claude", "--print", "-p", user_prompt],
+        input=system_prompt,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        env={**os.environ},
+    )
+    return result.stdout
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_otel_tracing_start_root_trace_uses_correct_script():
+    """Behavioral contract: when asked how to start a root trace for a new
+    factory task, the skill should direct the agent to call telemetry.py with
+    the start-root subcommand and store the resulting trace/span IDs in memory
+    as main_trace_id and main_span_id.
+    """
+    _check_llm_prerequisites()
+    skill_text = (_SKILL_PATH).read_text()
+    user_prompt = (
+        "I am starting a new software factory task. How do I emit the root "
+        "trace span and where do I store the resulting IDs?"
+    )
+    output = _call_claude(skill_text, user_prompt)
+    # Must reference telemetry.py and start-root
+    assert "telemetry.py" in output, (
+        f"Expected telemetry.py reference in root trace guidance: {output[:300]}"
+    )
+    assert "start-root" in output, (
+        f"Expected start-root subcommand in root trace guidance: {output[:300]}"
+    )
+    # Must mention where IDs are stored
+    assert "main_trace_id" in output or "main_span_id" in output, (
+        f"Expected main_trace_id/main_span_id storage guidance: {output[:300]}"
+    )
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_otel_tracing_phase_sub_trace_links_to_root():
+    """Behavioral contract: when asked how to start a phase trace, the skill
+    should direct the agent to use start-phase and emit a forward link from
+    the root trace to the new phase sub-trace via emit-forward-link.
+    """
+    _check_llm_prerequisites()
+    skill_text = (_SKILL_PATH).read_text()
+    user_prompt = (
+        "I am about to start the 'test-infrastructure' phase. The main trace "
+        "is already started. How do I create the phase sub-trace and link it "
+        "back to the root trace?"
+    )
+    output = _call_claude(skill_text, user_prompt)
+    # Must reference start-phase and linking
+    assert "start-phase" in output, (
+        f"Expected start-phase subcommand in phase trace guidance: {output[:300]}"
+    )
+    link_terms = ["emit-forward-link", "forward link", "link", "bi-directional"]
+    assert any(t in output.lower() for t in link_terms), (
+        f"Expected linking guidance in phase trace response: {output[:300]}"
+    )
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_otel_tracing_respects_sf_otel_enabled_gate():
+    """Behavioral contract: the skill must instruct the agent to check the
+    SF_OTEL_ENABLED environment variable before emitting any spans. If it is
+    not set to '1', tracing should be skipped entirely.
+    """
+    _check_llm_prerequisites()
+    skill_text = (_SKILL_PATH).read_text()
+    user_prompt = (
+        "Should I always emit OpenTelemetry spans regardless of environment "
+        "configuration, or is there a guard I need to check first?"
+    )
+    output = _call_claude(skill_text, user_prompt)
+    assert "SF_OTEL_ENABLED" in output, (
+        f"Expected SF_OTEL_ENABLED gating instruction in output: {output[:300]}"
+    )

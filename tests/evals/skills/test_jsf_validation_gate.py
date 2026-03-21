@@ -2,7 +2,13 @@
 
 Tests assert required sections, completion criteria, manual validation
 triggers, timing rules, confirmation protocol, and memory key references.
+
+LLM eval tests (marked @pytest.mark.llm_eval) are gated on --run-llm-evals
+and require ANTHROPIC_API_KEY to be set.
 """
+import os
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -174,3 +180,111 @@ def test_memory_write_has_method_field(skill_doc):
 def test_memory_script_exists_on_disk():
     script = _SCRIPTS_DIR / "memory.py"
     assert script.exists(), f"memory.py not found at {script}"
+
+
+# ---------------------------------------------------------------------------
+# LLM eval tests — skipped unless --run-llm-evals is passed
+# ---------------------------------------------------------------------------
+
+def _check_llm_prerequisites():
+    """Skip the test if ANTHROPIC_API_KEY is missing or claude CLI is absent."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        pytest.skip("requires --run-llm-evals and ANTHROPIC_API_KEY")
+    if not shutil.which("claude"):
+        pytest.skip("claude CLI not found on PATH")
+
+
+def _call_claude(system_prompt: str, user_prompt: str, timeout: int = 60) -> str:
+    """Call the claude CLI with a system prompt and user prompt, return stdout."""
+    result = subprocess.run(
+        ["claude", "--print", "-p", user_prompt],
+        input=system_prompt,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        env={**os.environ},
+    )
+    return result.stdout
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_validation_gate_requires_both_criteria():
+    """Behavioral contract: the validation gate must require BOTH automated tests
+    passing AND explicit manual confirmation before marking a phase complete.
+    Passing only one criterion must NOT be sufficient.
+    """
+    _check_llm_prerequisites()
+    skill_text = (_SKILL_PATH).read_text()
+    user_prompt = (
+        "All automated tests are passing for this phase. Can I mark the phase "
+        "as validated and complete without waiting for the human reviewer to "
+        "manually confirm?"
+    )
+    output = _call_claude(skill_text, user_prompt)
+    # Should say no — both criteria required
+    permissive = (
+        output.lower().strip().startswith("yes")
+        or "you can mark" in output.lower()
+        or "automated tests are sufficient" in output.lower()
+    )
+    assert not permissive, (
+        f"Validation gate should require manual confirmation too: {output[:300]}"
+    )
+    both_required = (
+        "both" in output.lower()
+        or "manual" in output.lower()
+        or "confirmation" in output.lower()
+        or "not complete" in output.lower()
+    )
+    assert both_required, (
+        f"Expected 'both criteria required' language in output: {output[:300]}"
+    )
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_validation_gate_silence_does_not_count():
+    """Behavioral contract: the skill must instruct the agent that silence or
+    ambiguous responses from the reviewer do NOT count as explicit confirmation.
+    Only a clear affirmative (e.g. 'LGTM', 'approved', 'confirmed') counts.
+    """
+    _check_llm_prerequisites()
+    skill_text = (_SKILL_PATH).read_text()
+    user_prompt = (
+        "I sent the validation request to the reviewer 30 minutes ago and "
+        "they haven't responded. Can I treat their silence as implicit approval?"
+    )
+    output = _call_claude(skill_text, user_prompt)
+    # Should say silence does not count
+    no_silence = (
+        "silence" in output.lower()
+        or "does not count" in output.lower()
+        or "explicit" in output.lower()
+        or "no" in output.lower()
+    )
+    assert no_silence, (
+        f"Expected silence-does-not-count guidance but got: {output[:300]}"
+    )
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_validation_gate_triggers_manual_for_api_changes():
+    """Behavioral contract: when a phase includes API surface changes, the skill
+    should flag that manual validation is required for that phase specifically,
+    not just for UI changes.
+    """
+    _check_llm_prerequisites()
+    skill_text = (_SKILL_PATH).read_text()
+    user_prompt = (
+        "The phase I just implemented adds three new REST API endpoints. "
+        "Do I need manual validation for this phase?"
+    )
+    output = _call_claude(skill_text, user_prompt)
+    # Should confirm manual validation is needed for API changes
+    assert "manual" in output.lower(), (
+        f"Expected manual validation guidance for API changes: {output[:300]}"
+    )
+    yes_terms = ["yes", "required", "needed", "api surface", "should"]
+    has_confirmation = any(t in output.lower() for t in yes_terms)
+    assert has_confirmation, (
+        f"Expected affirmation that manual validation is needed: {output[:300]}"
+    )

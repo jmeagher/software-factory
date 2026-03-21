@@ -3,7 +3,14 @@
 Tests assert required sections, lifecycle phase ordering, agent role
 references, memory key references, parallelization rules, config layering,
 and context discipline.
+
+LLM eval tests (marked @pytest.mark.llm_eval) are gated on --run-llm-evals
+and require ANTHROPIC_API_KEY to be set.
 """
+import os
+import re
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -251,3 +258,109 @@ def test_ask_if_unclear_rule(skill_doc):
 def test_memory_script_exists_on_disk():
     script = _SCRIPTS_DIR / "memory.py"
     assert script.exists(), f"memory.py not found at {script}"
+
+
+# ---------------------------------------------------------------------------
+# LLM eval tests — skipped unless --run-llm-evals is passed
+# ---------------------------------------------------------------------------
+
+def _check_llm_prerequisites():
+    """Skip the test if ANTHROPIC_API_KEY is missing or claude CLI is absent."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        pytest.skip("requires --run-llm-evals and ANTHROPIC_API_KEY")
+    if not shutil.which("claude"):
+        pytest.skip("claude CLI not found on PATH")
+
+
+def _call_claude(system_prompt: str, user_prompt: str, timeout: int = 60) -> str:
+    """Call the claude CLI with a system prompt and user prompt, return stdout."""
+    result = subprocess.run(
+        ["claude", "--print", "-p", user_prompt],
+        input=system_prompt,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        env={**os.environ},
+    )
+    return result.stdout
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_workflow_produces_phases_in_correct_order():
+    """Behavioral contract: when describing the workflow lifecycle, the skill
+    must enumerate phases in the order: Intake -> Clarification -> Spec/Plan
+    -> Implementation phases -> Done. It must not reorder or skip phases.
+    """
+    _check_llm_prerequisites()
+    skill_text = (_SKILL_PATH).read_text()
+    user_prompt = (
+        "Describe the complete lifecycle of a software factory workflow from "
+        "start to finish. What are all the phases in order?"
+    )
+    output = _call_claude(skill_text, user_prompt)
+    output_lower = output.lower()
+    # All key phases must appear
+    required_phases = ["intake", "clarification", "implementation"]
+    for phase in required_phases:
+        assert phase in output_lower, (
+            f"Expected phase '{phase}' in workflow lifecycle description: {output[:400]}"
+        )
+    # Ordering: intake before clarification before implementation
+    intake_pos = output_lower.find("intake")
+    clarification_pos = output_lower.find("clarification")
+    impl_pos = output_lower.find("implementation")
+    if intake_pos != -1 and clarification_pos != -1 and impl_pos != -1:
+        assert intake_pos < clarification_pos < impl_pos, (
+            f"Workflow phases not in correct order in output: {output[:400]}"
+        )
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_workflow_refuses_to_skip_clarification():
+    """Behavioral contract: when asked to skip the clarification phase and jump
+    directly to implementation, the workflow skill should refuse and explain
+    that phases cannot be skipped or reordered.
+    """
+    _check_llm_prerequisites()
+    skill_text = (_SKILL_PATH).read_text()
+    user_prompt = (
+        "The user request is very clear and I understand exactly what they want. "
+        "Can I skip the clarification phase and go straight to spec/planning?"
+    )
+    output = _call_claude(skill_text, user_prompt)
+    # Should say no — do not skip phases
+    permissive = (
+        output.lower().strip().startswith("yes")
+        or "you can skip" in output.lower()
+        or "feel free to skip" in output.lower()
+    )
+    assert not permissive, (
+        f"Workflow skill should refuse phase skipping but was permissive: {output[:300]}"
+    )
+    no_skip_terms = ["do not skip", "cannot skip", "must not skip", "skip", "reorder"]
+    has_restriction = any(t in output.lower() for t in no_skip_terms)
+    assert has_restriction, (
+        f"Expected phase-skipping restriction in output: {output[:300]}"
+    )
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_workflow_state_passed_via_memory():
+    """Behavioral contract: when asked how to pass state between phases/agents,
+    the workflow skill should direct the agent to use memory (not conversation
+    context or inline passing) as the inter-agent communication channel.
+    """
+    _check_llm_prerequisites()
+    skill_text = (_SKILL_PATH).read_text()
+    user_prompt = (
+        "How should the orchestrator pass information (like the clarification "
+        "summary) to the implementer subagent? Should I include it in the "
+        "prompt text or use some other mechanism?"
+    )
+    output = _call_claude(skill_text, user_prompt)
+    # Should mention memory as the mechanism
+    memory_terms = ["memory", "memory.py", "memory script", "via memory"]
+    has_memory_ref = any(t in output.lower() for t in memory_terms)
+    assert has_memory_ref, (
+        f"Expected memory-as-state-channel guidance but got: {output[:300]}"
+    )

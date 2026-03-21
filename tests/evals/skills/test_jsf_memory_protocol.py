@@ -2,7 +2,13 @@
 
 Tests assert required sections, well-known memory keys, agent startup
 protocol steps, script path references, and behavioral rules.
+
+LLM eval tests (marked @pytest.mark.llm_eval) are gated on --run-llm-evals
+and require ANTHROPIC_API_KEY to be set.
 """
+import os
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -197,3 +203,99 @@ def test_memory_script_exists_on_disk():
 
 def test_claude_plugin_data_env_var_referenced(skill_doc):
     assert "CLAUDE_PLUGIN_DATA" in _text(skill_doc)
+
+
+# ---------------------------------------------------------------------------
+# LLM eval tests — skipped unless --run-llm-evals is passed
+# ---------------------------------------------------------------------------
+
+def _check_llm_prerequisites():
+    """Skip the test if ANTHROPIC_API_KEY is missing or claude CLI is absent."""
+    if not os.environ.get("ANTHROPIC_API_KEY"):
+        pytest.skip("requires --run-llm-evals and ANTHROPIC_API_KEY")
+    if not shutil.which("claude"):
+        pytest.skip("claude CLI not found on PATH")
+
+
+def _call_claude(system_prompt: str, user_prompt: str, timeout: int = 60) -> str:
+    """Call the claude CLI with a system prompt and user prompt, return stdout."""
+    result = subprocess.run(
+        ["claude", "--print", "-p", user_prompt],
+        input=system_prompt,
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+        env={**os.environ},
+    )
+    return result.stdout
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_memory_protocol_write_uses_correct_syntax():
+    """Behavioral contract: when asked to store a value in memory, the agent
+    should emit the correct memory.py write command syntax including --key,
+    --value, and ideally --agent flags, NOT invent a different API.
+    """
+    _check_llm_prerequisites()
+    skill_text = (_SKILL_PATH).read_text()
+    user_prompt = (
+        "I need to write the value 'hello world' to memory under key 'test_key'. "
+        "Show me the exact command to run."
+    )
+    output = _call_claude(skill_text, user_prompt)
+    # The skill mandates using memory.py with --key and --value flags
+    assert "memory.py" in output, (
+        f"Expected memory.py in output but got: {output[:300]}"
+    )
+    assert "--key" in output, (
+        f"Expected --key flag in output but got: {output[:300]}"
+    )
+    assert "--value" in output, (
+        f"Expected --value flag in output but got: {output[:300]}"
+    )
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_memory_protocol_gc_only_for_orchestrator():
+    """Behavioral contract: when a subagent asks about running gc, the skill
+    should clarify that gc is reserved for the orchestrator only and should
+    not be called by subagents directly.
+    """
+    _check_llm_prerequisites()
+    skill_text = (_SKILL_PATH).read_text()
+    user_prompt = (
+        "I am a subagent implementing a phase. Should I run the gc (garbage "
+        "collection) operation on the memory store after I finish my work?"
+    )
+    output = _call_claude(skill_text, user_prompt)
+    # The skill says gc is only called by orchestrator
+    assert "orchestrator" in output.lower(), (
+        f"Expected orchestrator guidance in gc response but got: {output[:300]}"
+    )
+    no_go_words = ["no", "not", "only", "orchestrator"]
+    has_restriction = any(w in output.lower() for w in no_go_words)
+    assert has_restriction, (
+        f"Expected restriction language about gc but got: {output[:300]}"
+    )
+
+
+@pytest.mark.llm_eval
+def test_llm_eval_memory_protocol_startup_sequence():
+    """Behavioral contract: when an agent starts up, the skill should direct it
+    to read agent_context from memory (not skip it) and export SF_AGENT_ID and
+    SF_TRACE_ID environment variables.
+    """
+    _check_llm_prerequisites()
+    skill_text = (_SKILL_PATH).read_text()
+    user_prompt = (
+        "I just started as a new agent. What are the first memory operations "
+        "I must perform before doing any work?"
+    )
+    output = _call_claude(skill_text, user_prompt)
+    # Should mention reading agent_context and setting env vars
+    assert "agent_context" in output or "list-keys" in output, (
+        f"Expected agent_context or list-keys in startup guidance: {output[:300]}"
+    )
+    assert "SF_AGENT_ID" in output or "SF_TRACE_ID" in output, (
+        f"Expected env var exports in startup guidance: {output[:300]}"
+    )
