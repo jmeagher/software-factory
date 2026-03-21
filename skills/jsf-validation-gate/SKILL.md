@@ -1,3 +1,8 @@
+---
+name: jsf-validation-gate
+description: Software factory validation gate — use when checking phase completion. Verifies automated tests pass and coordinates manual validation if required.
+---
+
 # Validation Gate
 
 ## Completion Criteria

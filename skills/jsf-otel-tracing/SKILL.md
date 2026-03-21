@@ -1,3 +1,8 @@
+---
+name: jsf-otel-tracing
+description: Software factory OpenTelemetry tracing — use when emitting traces for factory work. Covers root trace, phase sub-traces, and bi-directional linking.
+---
+
 # OpenTelemetry Tracing
 
 ## Overview

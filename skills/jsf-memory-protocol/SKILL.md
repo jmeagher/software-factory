@@ -1,3 +1,8 @@
+---
+name: jsf-memory-protocol
+description: Software factory memory protocol — use when reading or writing factory state. Covers JSONL memory operations, well-known keys, and agent startup protocol.
+---
+
 # Memory Protocol
 
 Factory agents share state via a JSONL memory file managed by `scripts/memory.py`.

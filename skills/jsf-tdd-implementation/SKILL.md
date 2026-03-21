@@ -1,3 +1,8 @@
+---
+name: jsf-tdd-implementation
+description: Software factory TDD implementation — use when implementing a phase. Enforces red-green discipline and code security standards before committing.
+---
+
 # TDD Implementation
 
 ## Red-Green Discipline
