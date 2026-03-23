@@ -71,6 +71,16 @@ class TestGuards:
         import hook_tracer as ht  # noqa: PLC0415
         assert ht.should_exit_early() is True
 
+    def test_guard_exits_when_telemetry_unset(self, tmp_path, monkeypatch):
+        """script exits 0 when CLAUDE_CODE_ENABLE_TELEMETRY is completely unset."""
+        monkeypatch.delenv("CLAUDE_CODE_ENABLE_TELEMETRY", raising=False)
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
+
+        if "hook_tracer" in sys.modules:
+            del sys.modules["hook_tracer"]
+        import hook_tracer as ht  # noqa: PLC0415
+        assert ht.should_exit_early() is True
+
     def test_guard_exits_when_endpoint_unset(self, monkeypatch):
         """script exits 0 when OTEL_EXPORTER_OTLP_ENDPOINT is unset."""
         monkeypatch.setenv("CLAUDE_CODE_ENABLE_TELEMETRY", "1")
@@ -260,6 +270,11 @@ class TestPreToolUse:
         # Temp file must store tool_name and the parent session context
         assert "tool_name" in ctx_data
         assert "start_time_ns" in ctx_data
+        # Temp file must store parent trace/span IDs for span reconstruction
+        assert "parent_trace_id" in ctx_data, "parent_trace_id must be in temp file"
+        assert "parent_span_id" in ctx_data, "parent_span_id must be in temp file"
+        assert len(ctx_data["parent_trace_id"]) == 32, "trace_id must be 32 hex chars"
+        assert len(ctx_data["parent_span_id"]) == 16, "span_id must be 16 hex chars"
 
     def test_pre_tool_temp_file_uses_tmpdir_env(self, monkeypatch, tmp_path):
         """Temp file path uses $TMPDIR if set, falls back to /tmp."""
@@ -506,3 +521,122 @@ class TestPromptId:
         tool_spans = [s for s in spans if s.name == "claude.tool_call"]
         assert len(tool_spans) == 1
         assert tool_spans[0].attributes.get("prompt.id") == "pmt-xyz"
+
+    def test_prompt_id_carried_on_session_event_span(self, monkeypatch, tmp_path):
+        """prompt.id from payload is attached to session-event spans (e.g. Stop)."""
+        monkeypatch.setenv("CLAUDE_CODE_ENABLE_TELEMETRY", "1")
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
+        monkeypatch.setenv("CLAUDE_SESSION_ID", "prompt-event-session")
+        monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path))
+
+        if "hook_tracer" in sys.modules:
+            del sys.modules["hook_tracer"]
+        import hook_tracer as ht  # noqa: PLC0415
+
+        provider, exporter = _make_test_provider()
+        ht.handle_session_start({}, provider=provider, session_id="prompt-event-session")
+
+        ht.handle_session_event(
+            "Stop",
+            {"prompt_id": "pmt-event-abc"},
+            provider=provider,
+            session_id="prompt-event-session",
+        )
+
+        spans = exporter.get_finished_spans()
+        event_spans = [s for s in spans if s.name == "claude.session.stop"]
+        assert len(event_spans) == 1
+        assert event_spans[0].attributes.get("prompt.id") == "pmt-event-abc"
+
+
+# ---------------------------------------------------------------------------
+# Concurrency: independent temp files per invocation ID
+# ---------------------------------------------------------------------------
+
+class TestConcurrency:
+    def test_concurrent_pre_tool_calls_use_independent_temp_files(self, monkeypatch, tmp_path):
+        """Two concurrent pre-tool calls with different tool_use_ids write to separate files."""
+        monkeypatch.setenv("CLAUDE_CODE_ENABLE_TELEMETRY", "1")
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
+        monkeypatch.setenv("CLAUDE_SESSION_ID", "concurrency-session")
+        monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path))
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+
+        if "hook_tracer" in sys.modules:
+            del sys.modules["hook_tracer"]
+        import hook_tracer as ht  # noqa: PLC0415
+
+        provider, exporter = _make_test_provider()
+        ht.handle_session_start({}, provider=provider, session_id="concurrency-session")
+
+        id_a = "concurrent-tool-aaa"
+        id_b = "concurrent-tool-bbb"
+
+        ht.handle_pre_tool(
+            {"tool_use_id": id_a, "tool_name": "Bash"},
+            provider=provider, session_id="concurrency-session",
+        )
+        ht.handle_pre_tool(
+            {"tool_use_id": id_b, "tool_name": "Read"},
+            provider=provider, session_id="concurrency-session",
+        )
+
+        file_a = tmp_path / f"jsf_hook_{id_a}.json"
+        file_b = tmp_path / f"jsf_hook_{id_b}.json"
+
+        assert file_a.exists(), f"Temp file for {id_a} must exist"
+        assert file_b.exists(), f"Temp file for {id_b} must exist"
+
+        data_a = json.loads(file_a.read_text())
+        data_b = json.loads(file_b.read_text())
+
+        assert data_a["tool_name"] == "Bash"
+        assert data_b["tool_name"] == "Read"
+        # The two files must be distinct (no collision)
+        assert file_a != file_b
+
+    def test_concurrent_post_tool_calls_emit_independent_spans(self, monkeypatch, tmp_path):
+        """Post-tool calls for concurrent invocations emit two distinct tool_call spans."""
+        monkeypatch.setenv("CLAUDE_CODE_ENABLE_TELEMETRY", "1")
+        monkeypatch.setenv("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
+        monkeypatch.setenv("CLAUDE_SESSION_ID", "concurrency-post-session")
+        monkeypatch.setenv("CLAUDE_PLUGIN_DATA", str(tmp_path))
+        monkeypatch.setenv("TMPDIR", str(tmp_path))
+
+        if "hook_tracer" in sys.modules:
+            del sys.modules["hook_tracer"]
+        import hook_tracer as ht  # noqa: PLC0415
+
+        provider, exporter = _make_test_provider()
+        ht.handle_session_start({}, provider=provider, session_id="concurrency-post-session")
+
+        id_a = "concpost-tool-aaa"
+        id_b = "concpost-tool-bbb"
+
+        ht.handle_pre_tool(
+            {"tool_use_id": id_a, "tool_name": "Bash"},
+            provider=provider, session_id="concurrency-post-session",
+        )
+        ht.handle_pre_tool(
+            {"tool_use_id": id_b, "tool_name": "Read"},
+            provider=provider, session_id="concurrency-post-session",
+        )
+
+        ht.handle_post_tool(
+            {"tool_use_id": id_a},
+            provider=provider, session_id="concurrency-post-session",
+        )
+        ht.handle_post_tool(
+            {"tool_use_id": id_b},
+            provider=provider, session_id="concurrency-post-session",
+        )
+
+        # Temp files must be cleaned up
+        assert not (tmp_path / f"jsf_hook_{id_a}.json").exists()
+        assert not (tmp_path / f"jsf_hook_{id_b}.json").exists()
+
+        spans = exporter.get_finished_spans()
+        tool_spans = [s for s in spans if s.name == "claude.tool_call"]
+        assert len(tool_spans) == 2
+        tool_names = {s.attributes.get("tool.name") for s in tool_spans}
+        assert tool_names == {"Bash", "Read"}
