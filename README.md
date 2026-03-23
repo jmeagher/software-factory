@@ -31,16 +31,35 @@ That's it. No additional setup is required for basic use.
 
 ### Optional: OpenTelemetry Tracing
 
-JSF can emit spans to any OTLP-compatible collector (Jaeger, Grafana Tempo, etc.) for observability into long-running factory sessions.
+JSF emits OpenTelemetry spans for every Claude session and tool call, giving you APM-style visibility into what Claude is doing and how long each step takes. Traces appear in Jaeger (or any OTLP-compatible backend) with no extra configuration beyond enabling Claude Code's standard telemetry.
 
-Set the endpoint before starting Claude Code:
+**Enable tracing** by setting these env vars before running `claude`:
 
 ```bash
+# Required — opt in to Claude Code telemetry (enables JSF tracing hooks too)
+export CLAUDE_CODE_ENABLE_TELEMETRY=1
+
+# Point at your OTLP collector (gRPC)
+export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
 export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
-export SF_OTEL_ENABLED=1
 ```
 
-The defaults (`localhost:4317`, enabled) are set automatically by the plugin's session-start hook if you don't override them.
+Once set, every Claude session automatically produces:
+
+| Span | When emitted |
+|------|-------------|
+| `claude.session` | Root span — opened on session start, closed on stop |
+| `claude.tool_call` | One child span per tool invocation (Bash, Read, Edit, etc.) |
+| `claude.session.stop` | Session ended normally |
+| `claude.session.subagent_stop` | Sub-agent completed |
+| `claude.session.compact` | Context compaction triggered |
+| `claude.session.notification` | Notification event fired |
+| `factory.task` | Full JSF workflow run (linked to `claude.session`) |
+| `factory.phase` | Each implementation phase (linked to `claude.session`) |
+
+All spans are sent to your OTLP collector under `service.name=jsf`. View them in the Jaeger UI at `http://localhost:16686` — select service **jsf** and you'll see the full trace tree for your session.
+
+> See the [Claude Code monitoring documentation](https://code.claude.com/docs/en/monitoring-usage) for the full list of supported environment variables, multi-team tagging, and backend configuration options.
 
 ### Running the Local Observability Stack
 
@@ -303,7 +322,7 @@ Manages persistent JSONL memory with file-based locking for safe multi-agent coo
 
 ### `otel-tracing`
 
-Emits OpenTelemetry spans for factory activity monitoring. Spans cover the full workflow (`factory.task`), individual phases (`factory.phase`), automated validation (`factory.validation.automated`), manual validation (`factory.validation.manual`), and memory checkpoints (`factory.checkpoint`). Useful for understanding where time is spent in long multi-phase projects.
+Emits OpenTelemetry spans for factory activity monitoring. Spans cover the full workflow (`factory.task`), individual phases (`factory.phase`), automated validation (`factory.validation.automated`), manual validation (`factory.validation.manual`), and memory checkpoints (`factory.checkpoint`). These factory-level spans are linked to the `claude.session` root span emitted by the hook-based tracer, so factory activity appears inside the broader session trace in Jaeger. Useful for understanding where time is spent in long multi-phase projects.
 
 ---
 
@@ -432,7 +451,8 @@ Everything is visible at a glance. When phase 3 finishes, you run `/jsf:validate
 │   └── scripts/             # Safety hook shell scripts
 ├── scripts/
 │   ├── memory.py            # JSONL memory manager
-│   └── telemetry.py         # OTel span emitter
+│   ├── telemetry.py         # OTel span emitter (factory-level spans)
+│   └── hook_tracer.py       # OTel hook tracer (session + tool-call spans)
 ├── rules/                   # Cursor-compatible rule files
 ├── docs/
 │   └── ProjectGoals.md      # Design goals and requirements
