@@ -12,11 +12,11 @@ import pytest
 # Plugin cache paths
 # ---------------------------------------------------------------------------
 
-_PLUGIN_CACHE = Path("/home/jmeagher/.claude/plugins/cache/jsf/jsf/0.1.0")
-_SCRIPTS_DIR = _PLUGIN_CACHE / "scripts"
-_SKILLS_DIR = _PLUGIN_CACHE / "skills"
-_HOOKS_SCRIPTS_DIR = Path("/home/jmeagher/devel/software-factory/hooks/scripts")
-_COMMANDS_DIR = Path("/home/jmeagher/devel/software-factory/commands")
+_REPO_ROOT = Path("/home/jmeagher/devel/software-factory")
+_SCRIPTS_DIR = _REPO_ROOT / "scripts"
+_SKILLS_DIR = _REPO_ROOT / "skills"
+_HOOKS_SCRIPTS_DIR = _REPO_ROOT / "hooks" / "scripts"
+_COMMANDS_DIR = _REPO_ROOT / "commands"
 
 
 # ---------------------------------------------------------------------------
@@ -81,7 +81,7 @@ def skill_doc():
     Usage::
 
         def test_something(skill_doc):
-            text = skill_doc("jsf-workflow")
+            text = skill_doc("workflow")
     """
 
     def _get(skill_name: str) -> str:

@@ -35,8 +35,8 @@ def test_start_references_clarification_summary_key(command_doc):
 def test_start_references_jsf_clarifier_agent(command_doc):
     """start.md must reference the jsf-clarifier agent dispatch pattern."""
     text = command_doc("start")
-    assert "jsf-clarifier" in text or "jsf:jsf-clarifier" in text, (
-        "start.md must reference the jsf-clarifier agent"
+    assert "jsf:clarifier" in text, (
+        "start.md must reference the jsf:clarifier agent"
     )
 
 
@@ -49,7 +49,7 @@ def test_start_references_memory_script(command_doc):
 def test_start_references_workflow_skill(command_doc):
     """start.md must reference the jsf-workflow skill."""
     text = command_doc("start")
-    assert "jsf-workflow" in text, "start.md must reference the jsf-workflow skill"
+    assert "workflow" in text, "start.md must reference the workflow skill"
 
 
 def test_start_references_gc(command_doc):

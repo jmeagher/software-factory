@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-SKILL_NAME = "jsf-workflow"
-_PLUGIN_ROOT = Path("/home/jmeagher/.claude/plugins/cache/jsf/jsf/0.1.0")
+SKILL_NAME = "workflow"
+_PLUGIN_ROOT = Path("/home/jmeagher/devel/software-factory")
 _SKILL_PATH = _PLUGIN_ROOT / "skills" / SKILL_NAME / "SKILL.md"
 _SCRIPTS_DIR = _PLUGIN_ROOT / "scripts"
 
@@ -46,7 +46,7 @@ def test_skill_file_is_non_empty():
 # ---------------------------------------------------------------------------
 
 def test_frontmatter_name(skill_doc):
-    assert "name: jsf-workflow" in _text(skill_doc)
+    assert "name: workflow" in _text(skill_doc)
 
 
 def test_frontmatter_version(skill_doc):
@@ -127,23 +127,23 @@ def test_do_not_reorder_phases_rule(skill_doc):
 # ---------------------------------------------------------------------------
 
 def test_agent_role_jsf_clarifier_referenced(skill_doc):
-    assert "jsf:jsf-clarifier" in _text(skill_doc)
+    assert "jsf:clarifier" in _text(skill_doc)
 
 
 def test_agent_role_jsf_planner_referenced(skill_doc):
-    assert "jsf:jsf-planner" in _text(skill_doc)
+    assert "jsf:planner" in _text(skill_doc)
 
 
 def test_agent_role_jsf_implementer_referenced(skill_doc):
-    assert "jsf:jsf-implementer" in _text(skill_doc)
+    assert "jsf:implementer" in _text(skill_doc)
 
 
 def test_agent_role_jsf_reviewer_referenced(skill_doc):
-    assert "jsf:jsf-reviewer" in _text(skill_doc)
+    assert "jsf:reviewer" in _text(skill_doc)
 
 
 def test_agent_role_jsf_validator_referenced(skill_doc):
-    assert "jsf:jsf-validator" in _text(skill_doc)
+    assert "jsf:validator" in _text(skill_doc)
 
 
 # ---------------------------------------------------------------------------

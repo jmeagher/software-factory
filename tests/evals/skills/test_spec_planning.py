@@ -15,8 +15,8 @@ from pathlib import Path
 
 import pytest
 
-SKILL_NAME = "jsf-spec-planning"
-_PLUGIN_ROOT = Path("/home/jmeagher/.claude/plugins/cache/jsf/jsf/0.1.0")
+SKILL_NAME = "spec-planning"
+_PLUGIN_ROOT = Path("/home/jmeagher/devel/software-factory")
 _SKILL_PATH = _PLUGIN_ROOT / "skills" / SKILL_NAME / "SKILL.md"
 
 
@@ -45,7 +45,7 @@ def test_skill_file_is_non_empty():
 # ---------------------------------------------------------------------------
 
 def test_frontmatter_name(skill_doc):
-    assert "name: jsf-spec-planning" in _text(skill_doc)
+    assert "name: spec-planning" in _text(skill_doc)
 
 
 def test_frontmatter_version(skill_doc):

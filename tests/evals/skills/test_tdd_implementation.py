@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-SKILL_NAME = "jsf-tdd-implementation"
-_PLUGIN_ROOT = Path("/home/jmeagher/.claude/plugins/cache/jsf/jsf/0.1.0")
+SKILL_NAME = "tdd-implementation"
+_PLUGIN_ROOT = Path("/home/jmeagher/devel/software-factory")
 _SKILL_PATH = _PLUGIN_ROOT / "skills" / SKILL_NAME / "SKILL.md"
 _SCRIPTS_DIR = _PLUGIN_ROOT / "scripts"
 
@@ -44,7 +44,7 @@ def test_skill_file_is_non_empty():
 # ---------------------------------------------------------------------------
 
 def test_frontmatter_name(skill_doc):
-    assert "name: jsf-tdd-implementation" in _text(skill_doc)
+    assert "name: tdd-implementation" in _text(skill_doc)
 
 
 def test_frontmatter_version(skill_doc):
