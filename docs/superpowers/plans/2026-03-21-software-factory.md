@@ -41,24 +41,24 @@ software-factory/
 │   ├── telemetry.py                         # OpenTelemetry span management
 │   └── requirements.txt                     # Python deps (opentelemetry-*)
 ├── skills/
-│   ├── jsf-workflow/SKILL.md            # Master orchestration guidance
-│   ├── jsf-clarification/SKILL.md              # Structured clarification dialogue
-│   ├── jsf-spec-planning/SKILL.md              # Tech spec + phased implementation plan
-│   ├── jsf-tdd-implementation/SKILL.md         # Red-green TDD discipline
-│   ├── jsf-validation-gate/SKILL.md            # Phase completion criteria
-│   ├── jsf-memory-protocol/SKILL.md            # How agents read/write memory
-│   └── jsf-otel-tracing/SKILL.md              # How agents emit spans
+│   ├── workflow/SKILL.md            # Master orchestration guidance
+│   ├── clarification/SKILL.md              # Structured clarification dialogue
+│   ├── spec-planning/SKILL.md              # Tech spec + phased implementation plan
+│   ├── tdd-implementation/SKILL.md         # Red-green TDD discipline
+│   ├── validation-gate/SKILL.md            # Phase completion criteria
+│   ├── memory-protocol/SKILL.md            # How agents read/write memory
+│   └── otel-tracing/SKILL.md              # How agents emit spans
 ├── commands/
 │   ├── jsf-start.md                             # /jsf:start
 │   ├── jsf-resume.md                            # /jsf:resume
 │   ├── jsf-validate.md                          # /jsf:validate
 │   └── jsf-status.md                            # /jsf:status
 ├── agents/
-│   ├── jsf-clarifier.md
-│   ├── jsf-planner.md
-│   ├── jsf-implementer.md
-│   ├── jsf-reviewer.md
-│   └── jsf-validator.md
+│   ├── clarifier.md
+│   ├── planner.md
+│   ├── implementer.md
+│   ├── reviewer.md
+│   └── validator.md
 ├── tests/
 │   ├── hooks/
 │   │   ├── test-dangerous-bash.sh
@@ -558,7 +558,7 @@ git commit -m "feat: wire all three safety hooks into plugin PreToolUse"
 
 **Files:**
 - Create: `scripts/memory.py`
-- Create: `skills/jsf-memory-protocol/SKILL.md`
+- Create: `skills/memory-protocol/SKILL.md`
 - Create: `tests/memory/test_memory.py`
 
 ### Task 3.1: Memory script with tests
@@ -840,7 +840,7 @@ python3 -m pytest tests/memory/test_memory.py -v
 ```
 Expected: all 8 tests pass.
 
-- [ ] **Step 5: Create `skills/jsf-memory-protocol/SKILL.md`**
+- [ ] **Step 5: Create `skills/memory-protocol/SKILL.md`**
 
 ```markdown
 # Memory Protocol
@@ -908,7 +908,7 @@ Every agent MUST do this before any other action:
 - [ ] **Step 6: Commit**
 
 ```bash
-git add scripts/memory.py skills/jsf-memory-protocol/SKILL.md tests/memory/
+git add scripts/memory.py skills/memory-protocol/SKILL.md tests/memory/
 git commit -m "feat: add JSONL memory system with file locking, tests, and skill"
 ```
 
@@ -919,13 +919,13 @@ git commit -m "feat: add JSONL memory system with file locking, tests, and skill
 **Goal:** Skills, commands, and agents implementing the full factory workflow. **Requires Sub-Plan 3 (memory) to be complete** — agents write to memory at runtime.
 
 **Files:**
-- Create: `skills/jsf-workflow/SKILL.md`
-- Create: `skills/jsf-clarification/SKILL.md`
-- Create: `skills/jsf-spec-planning/SKILL.md`
-- Create: `skills/jsf-tdd-implementation/SKILL.md`
-- Create: `skills/jsf-validation-gate/SKILL.md`
+- Create: `skills/workflow/SKILL.md`
+- Create: `skills/clarification/SKILL.md`
+- Create: `skills/spec-planning/SKILL.md`
+- Create: `skills/tdd-implementation/SKILL.md`
+- Create: `skills/validation-gate/SKILL.md`
 - Create: `commands/jsf-start.md`, `commands/jsf-resume.md`, `commands/jsf-validate.md`, `commands/jsf-status.md`
-- Create: `agents/jsf-clarifier.md`, `agents/jsf-planner.md`, `agents/jsf-implementer.md`, `agents/jsf-reviewer.md`, `agents/jsf-validator.md`
+- Create: `agents/clarifier.md`, `agents/planner.md`, `agents/implementer.md`, `agents/reviewer.md`, `agents/validator.md`
 
 ### Task 4.1: Factory workflow skill (master orchestration)
 
@@ -937,7 +937,7 @@ claude --plugin-dir . --print "What plugin skills are loaded?" 2>&1 | grep -i "f
 ```
 Expected: "No skills" or plugin listed (baseline before adding skills).
 
-- [ ] **Step 2: Create `skills/jsf-workflow/SKILL.md`**
+- [ ] **Step 2: Create `skills/workflow/SKILL.md`**
 
 ```markdown
 # Software Factory Workflow
@@ -994,7 +994,7 @@ Never assume anything not explicitly stated by the user. If unclear: ask. Do not
 ```bash
 claude --plugin-dir . --print "What skills do you have from the jsf plugin?"
 ```
-Expected: mentions `jsf-workflow` skill.
+Expected: mentions `workflow` skill.
 
 - [ ] **Step 4: Test config layering**
 
@@ -1007,20 +1007,20 @@ EOF
 
 # Ask Claude to describe the factory config it would use for /tmp/sf-test-project
 PROJECT_ROOT=/tmp/sf-test-project claude --plugin-dir . \
-  --print "Using the jsf-workflow skill, what manual_validation_triggers would apply to the project at /tmp/sf-test-project?"
+  --print "Using the workflow skill, what manual_validation_triggers would apply to the project at /tmp/sf-test-project?"
 ```
 Expected: Claude reads and reports `["ui_changes"]` from the project config, not the factory default list.
 
 - [ ] **Step 5: Commit**
 
 ```bash
-git add skills/jsf-workflow/SKILL.md
+git add skills/workflow/SKILL.md
 git commit -m "feat: add factory-workflow master orchestration skill"
 ```
 
 ### Task 4.2: Clarification skill and agent
 
-- [ ] **Step 1: Create `skills/jsf-clarification/SKILL.md`**
+- [ ] **Step 1: Create `skills/clarification/SKILL.md`**
 
 ```markdown
 # Clarification
@@ -1066,18 +1066,18 @@ Ask the user: "Does this summary accurately capture your request? Confirm to pro
 - Every item in the summary must have been stated or confirmed by the user — no inferences
 ```
 
-- [ ] **Step 2: Create `agents/jsf-clarifier.md`**
+- [ ] **Step 2: Create `agents/clarifier.md`**
 
 ```markdown
 ---
-name: jsf-clarifier
+name: clarifier
 description: Runs the structured clarification dialogue for a new software request. Invoke when a new workflow starts and clarification_summary is not yet in memory.
 ---
 
-You are the clarification specialist. Follow the `jsf-clarification` skill exactly.
+You are the clarification specialist. Follow the `clarification` skill exactly.
 
 1. Read the initial request from memory key `initial_request` (or from the user's message if not in memory).
-2. Ask one organized batch of questions covering all applicable categories from the jsf-clarification skill.
+2. Ask one organized batch of questions covering all applicable categories from the clarification skill.
 3. Wait for the user's answers.
 4. Produce a Clarification Summary.
 5. Ask the user to explicitly confirm it.
@@ -1087,13 +1087,13 @@ You are the clarification specialist. Follow the `jsf-clarification` skill exact
 - [ ] **Step 3: Commit**
 
 ```bash
-git add skills/jsf-clarification/SKILL.md agents/jsf-clarifier.md
-git commit -m "feat: add jsf-clarification skill and clarifier agent"
+git add skills/clarification/SKILL.md agents/clarifier.md
+git commit -m "feat: add clarification skill and clarifier agent"
 ```
 
 ### Task 4.3: Spec/planning skill and agent
 
-- [ ] **Step 1: Create `skills/jsf-spec-planning/SKILL.md`**
+- [ ] **Step 1: Create `skills/spec-planning/SKILL.md`**
 
 ```markdown
 # Spec and Planning
@@ -1134,15 +1134,15 @@ Write to memory:
 - `implementation_plan` — the confirmed plan as a JSON array of phase objects
 ```
 
-- [ ] **Step 2: Create `agents/jsf-planner.md`**
+- [ ] **Step 2: Create `agents/planner.md`**
 
 ```markdown
 ---
-name: jsf-planner
+name: planner
 description: Produces the technical spec and phased implementation plan after clarification is confirmed. Invoke after clarification_summary is in memory.
 ---
 
-You are the technical planning specialist. Follow the `jsf-spec-planning` skill.
+You are the technical planning specialist. Follow the `spec-planning` skill.
 
 1. Read `clarification_summary` from memory.
 2. Produce Technical Spec and Implementation Plan.
@@ -1154,13 +1154,13 @@ You are the technical planning specialist. Follow the `jsf-spec-planning` skill.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add skills/jsf-spec-planning/SKILL.md agents/jsf-planner.md
-git commit -m "feat: add jsf-spec-planning skill and planner agent"
+git add skills/spec-planning/SKILL.md agents/planner.md
+git commit -m "feat: add spec-planning skill and planner agent"
 ```
 
 ### Task 4.4: TDD implementation and code review
 
-- [ ] **Step 1: Create `skills/jsf-tdd-implementation/SKILL.md`**
+- [ ] **Step 1: Create `skills/tdd-implementation/SKILL.md`**
 
 ```markdown
 # TDD Implementation
@@ -1203,15 +1203,15 @@ Every change must be checked by the reviewer agent before committing. The review
 Do not commit a phase until the reviewer approves it.
 ```
 
-- [ ] **Step 2: Create `agents/jsf-implementer.md`**
+- [ ] **Step 2: Create `agents/implementer.md`**
 
 ```markdown
 ---
-name: jsf-implementer
+name: implementer
 description: Implements a single phase of the plan using TDD. Invoke with the phase identifier. Reads phase spec from implementation_plan in memory.
 ---
 
-You are the implementation specialist for one phase. Follow the `jsf-tdd-implementation` skill exactly.
+You are the implementation specialist for one phase. Follow the `tdd-implementation` skill exactly.
 
 1. Read `agent_context` from memory to get your phase name and trace ID.
 2. Read `implementation_plan` from memory and find your phase.
@@ -1219,11 +1219,11 @@ You are the implementation specialist for one phase. Follow the `jsf-tdd-impleme
 4. When all tests pass, write: `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/memory.py" write --key "phase_complete:<phase_name>" --value '{"status":"ready_for_review","tests_pass":true}'`
 ```
 
-- [ ] **Step 3: Create `agents/jsf-reviewer.md`**
+- [ ] **Step 3: Create `agents/reviewer.md`**
 
 ```markdown
 ---
-name: jsf-reviewer
+name: reviewer
 description: Reviews code changes for security issues before phase commit. Invoke after phase_complete:<name> appears in memory.
 ---
 
@@ -1248,13 +1248,13 @@ If critical issues are found, set `"approved":false` and list each issue. Block 
 - [ ] **Step 4: Commit**
 
 ```bash
-git add skills/jsf-tdd-implementation/SKILL.md agents/jsf-implementer.md agents/jsf-reviewer.md
+git add skills/tdd-implementation/SKILL.md agents/implementer.md agents/reviewer.md
 git commit -m "feat: add TDD implementation skill, implementer and reviewer agents"
 ```
 
 ### Task 4.5: Validation gate skill and agent
 
-- [ ] **Step 1: Create `skills/jsf-validation-gate/SKILL.md`**
+- [ ] **Step 1: Create `skills/validation-gate/SKILL.md`**
 
 ```markdown
 # Validation Gate
@@ -1292,15 +1292,15 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/memory.py" write \
 ```
 ```
 
-- [ ] **Step 2: Create `agents/jsf-validator.md`**
+- [ ] **Step 2: Create `agents/validator.md`**
 
 ```markdown
 ---
-name: jsf-validator
+name: validator
 description: Runs the validation gate for a completed implementation phase. Checks automated tests and coordinates manual validation if needed.
 ---
 
-You are the validation specialist. Follow the `jsf-validation-gate` skill.
+You are the validation specialist. Follow the `validation-gate` skill.
 
 1. Read `agent_context` from memory to get the phase name.
 2. Run the phase's test suite. Report pass/fail counts.
@@ -1312,8 +1312,8 @@ You are the validation specialist. Follow the `jsf-validation-gate` skill.
 - [ ] **Step 3: Commit**
 
 ```bash
-git add skills/jsf-validation-gate/SKILL.md agents/jsf-validator.md
-git commit -m "feat: add jsf-validation-gate skill and validator agent"
+git add skills/validation-gate/SKILL.md agents/validator.md
+git commit -m "feat: add validation-gate skill and validator agent"
 ```
 
 ### Task 4.6: Commands
@@ -1325,7 +1325,7 @@ git commit -m "feat: add jsf-validation-gate skill and validator agent"
 description: Start the software factory workflow for a new idea or feature request
 ---
 
-You are beginning the John's Software Factory workflow. Use the `jsf-workflow` skill throughout.
+You are beginning the John's Software Factory workflow. Use the `workflow` skill throughout.
 
 1. If `$ARGUMENTS` is provided, write it to memory as `initial_request`. Otherwise ask the user to describe their request, then write it.
 2. Call `gc` on memory to clear any expired entries from previous sessions.
@@ -1359,7 +1359,7 @@ Ask: "Ready to resume from <phase name>?" before proceeding.
 description: Run the validation gate for the current phase
 ---
 
-Dispatch the validator agent for the current in-progress phase. The validator runs automated tests, reports results, and if manual validation is required per the `jsf-validation-gate` skill, prompts the user for explicit confirmation. Do not mark a phase complete until both criteria pass.
+Dispatch the validator agent for the current in-progress phase. The validator runs automated tests, reports results, and if manual validation is required per the `validation-gate` skill, prompts the user for explicit confirmation. Do not mark a phase complete until both criteria pass.
 ```
 
 - [ ] **Step 4: Create `commands/jsf-status.md`**
@@ -1407,7 +1407,7 @@ Expected: non-null JSON object with clarification summary fields (not `null`).
 - [ ] **Step 8: Commit**
 
 ```bash
-git add commands/ agents/jsf-validator.md
+git add commands/ agents/validator.md
 git commit -m "feat: add all four factory commands and complete agent set"
 ```
 
@@ -1422,7 +1422,7 @@ git commit -m "feat: add all four factory commands and complete agent set"
 **Files:**
 - Create: `scripts/requirements.txt`
 - Create: `scripts/telemetry.py`
-- Create: `skills/jsf-otel-tracing/SKILL.md`
+- Create: `skills/otel-tracing/SKILL.md`
 - Create: `tests/telemetry/test_telemetry.py`
 - Modify: `hooks/hooks.json` (add SessionStart hook)
 
@@ -1738,7 +1738,7 @@ SF_OTEL_ENABLED=1 python3 scripts/telemetry.py start-root --task "integration-te
 # Open http://localhost:16686 → Service: jsf → should show factory.task span
 ```
 
-- [ ] **Step 6: Create `skills/jsf-otel-tracing/SKILL.md`**
+- [ ] **Step 6: Create `skills/otel-tracing/SKILL.md`**
 
 ```markdown
 # OpenTelemetry Tracing
@@ -1820,7 +1820,7 @@ Add to the `"hooks"` object:
 - [ ] **Step 8: Commit**
 
 ```bash
-git add scripts/telemetry.py skills/jsf-otel-tracing/SKILL.md tests/telemetry/ hooks/hooks.json
+git add scripts/telemetry.py skills/otel-tracing/SKILL.md tests/telemetry/ hooks/hooks.json
 git commit -m "feat: add OpenTelemetry monitoring with root/sub-trace and bi-directional links"
 ```
 
@@ -1868,7 +1868,7 @@ git commit -m "feat: add Cursor plugin manifest with hooks reference"
 
 Each `.mdc` file has YAML frontmatter and the corresponding skill's content (copy of the skill, not a symlink — symlinks are not reliably resolved in all Cursor environments).
 
-- [ ] **Step 1: Create `rules/jsf-workflow.mdc`** (copy content from `skills/jsf-workflow/SKILL.md` with added frontmatter)
+- [ ] **Step 1: Create `rules/jsf-workflow.mdc`** (copy content from `skills/workflow/SKILL.md` with added frontmatter)
 
 ```markdown
 ---
@@ -1877,7 +1877,7 @@ globs: ["**/*"]
 alwaysApply: false
 ---
 
-[content from skills/jsf-workflow/SKILL.md — copy verbatim]
+[content from skills/workflow/SKILL.md — copy verbatim]
 ```
 
 - [ ] **Step 2: Create `rules/jsf-clarification.mdc`**
@@ -1889,7 +1889,7 @@ globs: ["**/*"]
 alwaysApply: false
 ---
 
-[content from skills/jsf-clarification/SKILL.md — copy verbatim]
+[content from skills/clarification/SKILL.md — copy verbatim]
 ```
 
 - [ ] **Step 3: Create `rules/jsf-spec-planning.mdc`**
@@ -1901,7 +1901,7 @@ globs: ["**/*"]
 alwaysApply: false
 ---
 
-[content from skills/jsf-spec-planning/SKILL.md — copy verbatim]
+[content from skills/spec-planning/SKILL.md — copy verbatim]
 ```
 
 - [ ] **Step 4: Create `rules/jsf-tdd-implementation.mdc`**
@@ -1913,7 +1913,7 @@ globs: ["**/*"]
 alwaysApply: false
 ---
 
-[content from skills/jsf-tdd-implementation/SKILL.md — copy verbatim]
+[content from skills/tdd-implementation/SKILL.md — copy verbatim]
 ```
 
 - [ ] **Step 5: Create `rules/jsf-validation-gate.mdc`**
@@ -1925,7 +1925,7 @@ globs: ["**/*"]
 alwaysApply: false
 ---
 
-[content from skills/jsf-validation-gate/SKILL.md — copy verbatim]
+[content from skills/validation-gate/SKILL.md — copy verbatim]
 ```
 
 - [ ] **Step 6: Create `rules/jsf-memory-protocol.mdc`**
@@ -1937,7 +1937,7 @@ globs: ["**/*"]
 alwaysApply: false
 ---
 
-[content from skills/jsf-memory-protocol/SKILL.md — copy verbatim]
+[content from skills/memory-protocol/SKILL.md — copy verbatim]
 ```
 
 - [ ] **Step 7: Create `rules/jsf-otel-tracing.mdc`**
@@ -1949,7 +1949,7 @@ globs: ["**/*"]
 alwaysApply: false
 ---
 
-[content from skills/jsf-otel-tracing/SKILL.md — copy verbatim]
+[content from skills/otel-tracing/SKILL.md — copy verbatim]
 ```
 
 - [ ] **Step 8: Commit**

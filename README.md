@@ -254,11 +254,11 @@ Resumes a factory workflow from the last memory checkpoint. Use this when return
 
 Skills are the internal building blocks JSF uses. You don't invoke these directly in normal use — commands orchestrate them automatically. Understanding them helps you know what's happening under the hood and how to customize or extend the workflow.
 
-### `jsf-workflow`
+### `workflow`
 
 The master orchestrator. Controls the full lifecycle: intake → clarification → spec+plan → phased TDD implementation → validation → completion. All other skills are invoked through this one.
 
-### `jsf-clarification`
+### `clarification`
 
 Runs a structured Q&A dialogue covering:
 - Scope and what is explicitly **out** of scope
@@ -270,13 +270,13 @@ Runs a structured Q&A dialogue covering:
 
 Produces a `clarification_summary` stored in memory that all downstream agents read.
 
-### `jsf-spec-planning`
+### `spec-planning`
 
 Converts the confirmed clarification summary into:
 - A technical specification (problem statement, architecture, data model, API surface, security considerations)
 - An ordered list of implementation phases, each with: test files to write first, source files to create/modify, and whether phases can run in parallel
 
-### `jsf-tdd-implementation`
+### `tdd-implementation`
 
 Implements a single phase with strict red-green-refactor discipline:
 1. Write failing tests first
@@ -284,7 +284,7 @@ Implements a single phase with strict red-green-refactor discipline:
 3. Refactor if needed
 4. Security review before committing: checks for hardcoded credentials, SQL/shell/XSS injection, insecure defaults, missing input validation
 
-### `jsf-validation-gate`
+### `validation-gate`
 
 After implementation, validates phase completion:
 - Runs the full automated test suite
@@ -292,7 +292,7 @@ After implementation, validates phase completion:
 - Presents a checklist for human confirmation when required
 - Only marks a phase complete when all checks pass
 
-### `jsf-memory-protocol`
+### `memory-protocol`
 
 Manages persistent JSONL memory with file-based locking for safe multi-agent coordination. Stores and retrieves:
 - `clarification_summary` — confirmed answers from the clarification dialogue
@@ -301,7 +301,7 @@ Manages persistent JSONL memory with file-based locking for safe multi-agent coo
 - `review_result`, `validation_confirmed` — review and validation outcomes
 - `checkpoints` — git SHAs at each phase boundary
 
-### `jsf-otel-tracing`
+### `otel-tracing`
 
 Emits OpenTelemetry spans for factory activity monitoring. Spans cover the full workflow (`factory.task`), individual phases (`factory.phase`), automated validation (`factory.validation.automated`), manual validation (`factory.validation.manual`), and memory checkpoints (`factory.checkpoint`). Useful for understanding where time is spent in long multi-phase projects.
 
@@ -419,13 +419,13 @@ Everything is visible at a glance. When phase 3 finishes, you run `/jsf:validate
 │   ├── status.md            # /jsf:status command
 │   └── validate.md          # /jsf:validate command
 ├── skills/
-│   ├── jsf-workflow/        # Master orchestration skill
-│   ├── jsf-clarification/   # Structured Q&A skill
-│   ├── jsf-spec-planning/   # Spec + plan generation skill
-│   ├── jsf-tdd-implementation/ # TDD implementation skill
-│   ├── jsf-validation-gate/ # Phase validation skill
-│   ├── jsf-memory-protocol/ # Persistent memory skill
-│   └── jsf-otel-tracing/   # OpenTelemetry tracing skill
+│   ├── workflow/        # Master orchestration skill
+│   ├── clarification/   # Structured Q&A skill
+│   ├── spec-planning/   # Spec + plan generation skill
+│   ├── tdd-implementation/ # TDD implementation skill
+│   ├── validation-gate/ # Phase validation skill
+│   ├── memory-protocol/ # Persistent memory skill
+│   └── otel-tracing/   # OpenTelemetry tracing skill
 ├── agents/                  # Specialist agent definitions
 ├── hooks/
 │   ├── hooks.json           # Hook configuration

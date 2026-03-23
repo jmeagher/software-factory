@@ -1,5 +1,5 @@
 ---
-name: jsf-spec-planning
+name: spec-planning
 description: Software factory spec and planning — use when producing a technical spec and phased implementation plan after clarification is confirmed.
 version: 0.1.0
 ---

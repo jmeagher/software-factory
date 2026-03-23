@@ -62,24 +62,24 @@ def test_telemetry_script_is_named_correctly(telemetry_script):
 
 
 def test_skill_doc_returns_string(skill_doc):
-    text = skill_doc("jsf-workflow")
+    text = skill_doc("workflow")
     assert isinstance(text, str)
 
 
 def test_skill_doc_has_content(skill_doc):
-    text = skill_doc("jsf-workflow")
+    text = skill_doc("workflow")
     assert len(text) > 0
 
 
 def test_skill_doc_for_all_skills(skill_doc):
     skills = [
-        "jsf-clarification",
-        "jsf-memory-protocol",
-        "jsf-otel-tracing",
-        "jsf-spec-planning",
-        "jsf-tdd-implementation",
-        "jsf-validation-gate",
-        "jsf-workflow",
+        "clarification",
+        "memory-protocol",
+        "otel-tracing",
+        "spec-planning",
+        "tdd-implementation",
+        "validation-gate",
+        "workflow",
     ]
     for skill in skills:
         text = skill_doc(skill)

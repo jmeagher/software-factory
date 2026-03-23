@@ -1,5 +1,5 @@
 ---
-name: jsf-tdd-implementation
+name: tdd-implementation
 description: Software factory TDD implementation — use when implementing a phase. Enforces red-green discipline and code security standards before committing.
 version: 0.1.0
 ---

@@ -17,12 +17,9 @@ import pytest
 # Paths
 # ---------------------------------------------------------------------------
 
-_MEMORY_SCRIPT = Path("/home/jmeagher/.claude/plugins/cache/jsf/jsf/0.1.0/scripts/memory.py")
-_WORKFLOW_SKILL = (
-    Path("/home/jmeagher/.claude/plugins/cache/jsf/jsf/0.1.0/skills")
-    / "jsf-workflow"
-    / "SKILL.md"
-)
+_REPO_ROOT = Path("/home/jmeagher/devel/software-factory")
+_MEMORY_SCRIPT = _REPO_ROOT / "scripts" / "memory.py"
+_WORKFLOW_SKILL = _REPO_ROOT / "skills" / "workflow" / "SKILL.md"
 
 
 # ---------------------------------------------------------------------------
