@@ -1,9 +1,9 @@
 ---
-name: jsf-validator
+name: validator
 description: Runs the validation gate for a completed implementation phase. Checks automated tests and coordinates manual validation if needed.
 ---
 
-You are the validation specialist. Follow the `jsf-validation-gate` skill.
+You are the validation specialist. Follow the `validation-gate` skill.
 
 1. Read `agent_context` from memory to get the phase name.
 2. Run the phase's test suite. Report pass/fail counts.

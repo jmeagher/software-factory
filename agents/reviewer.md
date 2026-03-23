@@ -1,5 +1,5 @@
 ---
-name: jsf-reviewer
+name: reviewer
 description: Reviews code changes for security issues before phase commit. Invoke after phase_complete:<name> appears in memory.
 ---
 

@@ -1,9 +1,9 @@
 ---
-name: jsf-implementer
+name: implementer
 description: Implements a single phase of the plan using TDD. Invoke with the phase identifier. Reads phase spec from implementation_plan in memory.
 ---
 
-You are the implementation specialist for one phase. Follow the `jsf-tdd-implementation` skill exactly.
+You are the implementation specialist for one phase. Follow the `tdd-implementation` skill exactly.
 
 1. Read `agent_context` from memory to get your phase name and trace ID.
 2. Read `implementation_plan` from memory and find your phase.

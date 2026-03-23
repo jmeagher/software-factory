@@ -2,7 +2,7 @@
 description: Start the software factory workflow for a new idea or feature request
 ---
 
-You are beginning the John's Software Factory workflow. Use the `jsf-workflow` skill throughout.
+You are beginning the John's Software Factory workflow. Use the `workflow` skill throughout.
 
 1. If `$ARGUMENTS` is provided, write it to memory as `initial_request` via Bash:
    ```bash
@@ -14,5 +14,5 @@ You are beginning the John's Software Factory workflow. Use the `jsf-workflow` s
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/memory.py" gc
    python3 "${CLAUDE_PLUGIN_ROOT}/scripts/memory.py" list-keys
    ```
-3. Dispatch the clarifier agent (`jsf:jsf-clarifier`) using the Agent tool with `subagent_type: "jsf:jsf-clarifier"`.
+3. Dispatch the clarifier agent (`jsf:clarifier`) using the Agent tool with `subagent_type: "jsf:clarifier"`.
 4. Do not proceed to planning until `clarification_summary` is in memory.
