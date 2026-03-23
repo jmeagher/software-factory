@@ -17,9 +17,17 @@ Bi-directional linking:
                 with the child trace_id as an attribute — visible in any trace viewer that
                 follows the root trace_id
 
+Session parent linking:
+  When CLAUDE_CODE_ENABLE_TELEMETRY=1 and OTEL_EXPORTER_OTLP_ENDPOINT is set, factory
+  spans (factory.task, factory.phase) include an OTel Link to the claude.session root span
+  created by hook_tracer.py. The session trace context is read from memory under the key
+  claude_session_trace_id:{session_id} (where session_id = CLAUDE_SESSION_ID env var).
+  This is a Link (not parent-child) because factory traces are independent traces.
+
 Set SF_OTEL_ENABLED=0 to disable OTLP export (tests/dry-run). IDs are still generated.
 """
-import argparse, json, os, sys
+import argparse, fcntl, json, os, sys
+from pathlib import Path
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import SimpleSpanProcessor
 from opentelemetry.sdk.resources import Resource
@@ -28,6 +36,12 @@ from opentelemetry import context as otel_context, trace as otel_trace
 
 ENDPOINT = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317")
 ENABLED = os.environ.get("SF_OTEL_ENABLED", "1") != "0"
+
+# Guard: only attempt session linking when both Claude telemetry vars are set
+_CLAUDE_TELEMETRY_ACTIVE = (
+    os.environ.get("CLAUDE_CODE_ENABLE_TELEMETRY") == "1"
+    and bool(os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip())
+)
 
 
 def _make_provider(resource_attrs: dict) -> TracerProvider:
@@ -57,34 +71,130 @@ def _span_ids(span) -> dict:
     return {"trace_id": format(ctx.trace_id, "032x"), "span_id": format(ctx.span_id, "016x")}
 
 
+def _memory_file() -> Path:
+    data_dir = os.environ.get("CLAUDE_PLUGIN_DATA", str(Path.home() / ".factory"))
+    p = Path(data_dir) / "memory.jsonl"
+    p.parent.mkdir(parents=True, exist_ok=True)
+    p.touch(exist_ok=True)
+    return p
+
+
+def _read_session_context(session_id: str):
+    """
+    Read the most recent claude.session trace context for the given session_id from memory.
+    Returns dict with 'trace_id' and 'span_id', or None if not found.
+    Memory key format: claude_session_trace_id:{session_id}
+    """
+    key = f"claude_session_trace_id:{session_id}"
+    path = _memory_file()
+    try:
+        with open(path, "r") as fh:
+            fcntl.flock(fh, fcntl.LOCK_SH)
+            try:
+                entries = []
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        entries.append(json.loads(line))
+                    except json.JSONDecodeError:
+                        pass
+            finally:
+                fcntl.flock(fh, fcntl.LOCK_UN)
+    except OSError:
+        return None
+
+    matches = [e for e in entries if e.get("key") == key]
+    if not matches:
+        return None
+    return matches[-1].get("value")
+
+
+def _session_link() -> "Link | None":
+    """
+    Return an OTel Link to the claude.session root span if session context is available.
+    Only attempted when CLAUDE_CODE_ENABLE_TELEMETRY=1 and OTEL_EXPORTER_OTLP_ENDPOINT is set.
+    Returns (Link, context_dict) or (None, None).
+    """
+    if not _CLAUDE_TELEMETRY_ACTIVE:
+        return None, None
+    session_id = os.environ.get("CLAUDE_SESSION_ID", "").strip()
+    if not session_id:
+        return None, None
+    ctx_data = _read_session_context(session_id)
+    if not ctx_data:
+        return None, None
+    try:
+        span_ctx = _ctx_from(ctx_data["trace_id"], ctx_data["span_id"])
+        link = Link(
+            context=span_ctx,
+            attributes={"link.type": "claude_session_root"},
+        )
+        return link, ctx_data
+    except (KeyError, ValueError):
+        return None, None
+
+
 def cmd_start_root(args):
-    """Emits a root 'factory.task' span. Returns trace_id and span_id for storage in memory."""
+    """
+    Emits a root 'factory.task' span. Returns trace_id and span_id for storage in memory.
+    If a claude.session context is available in memory, includes an OTel Link to it.
+    """
     provider = _make_provider({"factory.task": args.task})
     tracer = provider.get_tracer("jsf")
-    # No parent = new TraceID
-    with tracer.start_as_current_span("factory.task",
+
+    # Attempt to get an OTel Link to the claude.session root span
+    session_link, session_ctx_data = _session_link()
+    links = [session_link] if session_link is not None else []
+
+    # No parent context = new independent TraceID
+    with tracer.start_as_current_span("factory.task", links=links,
                                       attributes={"factory.task.name": args.task}) as span:
         ids = _span_ids(span)
+
     # Span is ended on __exit__; SimpleSpanProcessor exports it synchronously
-    print(json.dumps(ids))
+    result = dict(ids)
+    if session_ctx_data:
+        result["claude_session_link"] = {
+            "trace_id": session_ctx_data["trace_id"],
+            "span_id": session_ctx_data["span_id"],
+        }
+    print(json.dumps(result))
 
 
 def cmd_start_phase(args):
     """
     Emits a 'factory.phase' span in a NEW independent trace, with an OTel Link to root (phase → root).
+    If a claude.session context is available in memory, also adds an OTel Link to it.
     Returns the new trace_id + span_id. Store in memory for emit-forward-link.
     """
     provider = _make_provider({"factory.phase": args.phase})
     tracer = provider.get_tracer("jsf")
+
     root_link = Link(
         context=_ctx_from(args.root_trace_id, args.root_span_id),
         attributes={"link.type": "root_trace", "factory.phase.name": args.phase}
     )
+
+    # Attempt to get an OTel Link to the claude.session root span
+    session_link, session_ctx_data = _session_link()
+    links = [root_link]
+    if session_link is not None:
+        links.append(session_link)
+
     # start_span with no parent context = generates a new TraceID (independent trace)
-    with tracer.start_as_current_span("factory.phase", links=[root_link],
+    with tracer.start_as_current_span("factory.phase", links=links,
                                       attributes={"factory.phase.name": args.phase}) as span:
         ids = _span_ids(span)
-    print(json.dumps({**ids, "linked_root_trace_id": args.root_trace_id}))
+
+    result = {**ids, "linked_root_trace_id": args.root_trace_id}
+    if session_ctx_data:
+        result["claude_session_link"] = {
+            "trace_id": session_ctx_data["trace_id"],
+            "span_id": session_ctx_data["span_id"],
+        }
+    print(json.dumps(result))
 
 
 def cmd_emit_forward_link(args):
