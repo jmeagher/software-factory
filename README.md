@@ -1,3 +1,11 @@
+> [!WARNING]
+> **Work in Progress — Expect Daily Breaking Changes**
+>
+> This plugin is under active development and is **not stable**. The workflow,
+> commands, skills, and configuration are subject to change at any time — often
+> daily. If you are using this, expect things to break. There is no guarantee of
+> backwards compatibility between any two versions. Proceed accordingly.
+
 # John's Software Factory (JSF)
 
 An intelligent, phased workflow plugin for Claude Code that takes software projects from initial idea through complete, validated implementation. JSF enforces test-driven development discipline, security review gates, and structured human validation checkpoints — so you ship code that works and is safe.
@@ -33,6 +41,113 @@ export SF_OTEL_ENABLED=1
 ```
 
 The defaults (`localhost:4317`, enabled) are set automatically by the plugin's session-start hook if you don't override them.
+
+### Running the Local Observability Stack
+
+The `observability/` directory contains a ready-to-run Docker Compose stack that
+receives, stores, and visualises all three OTel signal types — metrics, traces,
+and logs — using entirely open-source components:
+
+| Component | Image | Purpose |
+|-----------|-------|---------|
+| **otel-collector** | `otel/opentelemetry-collector-contrib:0.92.0` | Receives OTLP and fans out to backends |
+| **Prometheus** | `prom/prometheus:v2.48.0` | Metric storage and query |
+| **Jaeger** | `jaegertracing/all-in-one:1.53` | Trace storage and UI |
+| **Loki** | `grafana/loki:2.9.3` | Log storage |
+| **Grafana** | `grafana/grafana:10.2.3` | Unified dashboard (datasources pre-wired) |
+
+**Start the stack:**
+
+```bash
+cd observability/
+docker compose up -d
+```
+
+**Service endpoints:**
+
+| Service | URL |
+|---------|-----|
+| Grafana | http://localhost:3000 (admin / admin) |
+| Prometheus | http://localhost:9090 |
+| Jaeger UI | http://localhost:16686 |
+| Loki | http://localhost:3100/ready |
+| OTLP gRPC | localhost:4317 |
+| OTLP HTTP | localhost:4318 |
+
+**Stop and remove volumes:**
+
+```bash
+docker compose down -v
+```
+
+---
+
+### Configuring Claude Code to Send Telemetry to the Stack
+
+Claude Code can export metrics and events to the local collector via the
+standard OpenTelemetry environment variables. Set these before running `claude`:
+
+```bash
+# Required — opt in to telemetry
+export CLAUDE_CODE_ENABLE_TELEMETRY=1
+
+# Send both metrics and logs/events over OTLP
+export OTEL_METRICS_EXPORTER=otlp
+export OTEL_LOGS_EXPORTER=otlp
+
+# Point at the local collector's gRPC endpoint
+export OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+
+# Optional: faster export intervals for local development
+export OTEL_METRIC_EXPORT_INTERVAL=10000   # 10s (default: 60s)
+export OTEL_LOGS_EXPORT_INTERVAL=5000      # 5s (default: 5s)
+
+claude
+```
+
+**What Claude Code exports:**
+
+*Metrics* (visible in Prometheus / Grafana):
+
+| Metric | Description |
+|--------|-------------|
+| `claude_code.session.count` | CLI sessions started |
+| `claude_code.cost.usage` | Session cost in USD |
+| `claude_code.token.usage` | Tokens used (input/output/cache) |
+| `claude_code.lines_of_code.count` | Lines added/removed |
+| `claude_code.active_time.total` | Time spent (user vs. CLI) |
+| `claude_code.commit.count` | Git commits created |
+| `claude_code.pull_request.count` | PRs created |
+| `claude_code.code_edit_tool.decision` | Tool permission accept/reject decisions |
+
+*Events* (visible in Loki / Grafana):
+
+| Event | Description |
+|-------|-------------|
+| `claude_code.user_prompt` | Prompt submitted (length only by default) |
+| `claude_code.api_request` | Each API call — model, cost, tokens, latency |
+| `claude_code.api_error` | Failed API requests |
+| `claude_code.tool_result` | Tool execution outcome, duration, decision |
+| `claude_code.tool_decision` | Permission decision for a tool call |
+
+All signals include `session.id`, `user.account_uuid`, `organization.id`,
+`service.name=claude-code`, and OS/arch attributes.
+
+**Optional: enable richer logging**
+
+```bash
+# Log user prompt content (disabled by default for privacy)
+export OTEL_LOG_USER_PROMPTS=1
+
+# Log MCP server/tool names and skill names in tool_result events
+export OTEL_LOG_TOOL_DETAILS=1
+```
+
+For more detail on all variables and multi-team tagging, see the
+[Claude Code monitoring documentation](https://code.claude.com/docs/en/monitoring-usage).
+
+---
 
 ### Python Dependencies (for memory and telemetry scripts)
 
