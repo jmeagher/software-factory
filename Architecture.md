@@ -81,7 +81,18 @@ Rule files in this directory:
 
 ## Hooks
 
-`hooks/hooks.json` registers `PreToolUse` hooks that run before every `Bash` tool call, and a `SessionStart` hook that sets default OTEL environment variables.
+`hooks/hooks.json` registers hooks for all seven Claude Code hook events. Safety hooks block dangerous shell and database operations. Tracing hooks (all `async: true`) emit OpenTelemetry spans via `scripts/hook_tracer.py` gated on `CLAUDE_CODE_ENABLE_TELEMETRY=1`.
+
+| Event | Handler | Purpose |
+|-------|---------|---------|
+| `SessionStart` | `hook_tracer.py --event SessionStart` | Opens `claude.session` root span |
+| `PreToolUse` (Bash) | `block-dangerous-bash.sh`, `block-dangerous-git.sh`, `block-dangerous-sql.sh` | Safety blocking (synchronous) |
+| `PreToolUse` (all) | `hook_tracer.py --event PreToolUse` | Starts `claude.tool_call` span; writes temp file for Pre/Post correlation |
+| `PostToolUse` (all) | `hook_tracer.py --event PostToolUse` | Closes `claude.tool_call` span; reads and deletes temp file |
+| `Stop` | `hook_tracer.py --event Stop` | Emits `claude.session.stop` span |
+| `SubagentStop` | `hook_tracer.py --event SubagentStop` | Emits `claude.session.subagent_stop` span |
+| `PreCompact` | `hook_tracer.py --event PreCompact` | Emits `claude.session.compact` span |
+| `Notification` | `hook_tracer.py --event Notification` | Emits `claude.session.notification` span |
 
 ### Hook Scripts (`hooks/scripts/`)
 
@@ -108,11 +119,13 @@ Rule files in this directory:
 
 ## Scripts
 
-Both scripts live in `scripts/` and are invoked via Bash by agents and the orchestrator.
+All three scripts live in `scripts/` and are invoked via Bash by agents, the orchestrator, and hook runners.
 
 **`memory.py`** — Shared state store for all factory agents. Reads and writes a JSONL file at `${CLAUDE_PLUGIN_DATA}/memory.jsonl`, which persists across sessions. Supports operations: `write`, `read`, `query`, `list-keys`, `delete`, `gc`. All inter-agent coordination (clarification summaries, implementation plans, phase completion signals, review results, validation confirmations) flows through this file.
 
-**`telemetry.py`** — OpenTelemetry tracing client. Each invocation is a fresh process that creates one span, ends it, and exports it via OTLP to `http://localhost:4317` (configurable via `OTEL_EXPORTER_OTLP_ENDPOINT`). Supports `start-root`, `start-phase`, `emit-forward-link`, and `emit-event` subcommands. Disable export without breaking anything by setting `SF_OTEL_ENABLED=0`.
+**`telemetry.py`** — OpenTelemetry tracing client for factory-level spans. Each invocation is a fresh process that creates one span, ends it, and exports it via OTLP to `OTEL_EXPORTER_OTLP_ENDPOINT` (default: `http://localhost:4317`). Supports `start-root`, `start-phase`, `emit-forward-link`, and `emit-event` subcommands. When `CLAUDE_CODE_ENABLE_TELEMETRY=1` and `CLAUDE_SESSION_ID` are set, factory spans include an OTel Link back to the `claude.session` root span emitted by `hook_tracer.py`, connecting factory traces to the session trace in Jaeger. Gated on `CLAUDE_CODE_ENABLE_TELEMETRY=1`.
+
+**`hook_tracer.py`** — OpenTelemetry tracing client for Claude hook events. Invoked by all seven hook entries in `hooks/hooks.json`. Each invocation is a stateless process that emits one span and exports it before exiting (`SimpleSpanProcessor`). Pre/Post tool-call correlation uses a temp file keyed by `tool_use_id` at `${TMPDIR:-/tmp}/jsf_hook_{tool_use_id}.json`. Session root span context (trace ID + span ID) is stored in `memory.py` under `claude_session_trace_id:{session_id}` so child spans from later hook invocations can reference the correct parent. Gated on `CLAUDE_CODE_ENABLE_TELEMETRY=1` and a non-empty `OTEL_EXPORTER_OTLP_ENDPOINT`.
 
 ---
 
@@ -123,9 +136,15 @@ Tests live in `tests/` with the following layout:
 ```
 tests/
   memory/
-    test_memory.py          # Unit tests for memory.py operations
+    test_memory.py                    # Unit tests for memory.py operations
   telemetry/
-    test_telemetry.py       # Unit tests for telemetry.py span emission
+    test_telemetry.py                 # Unit tests for telemetry.py span emission
+    test_telemetry_session_link.py    # Tests for factory→session OTel Link
+  hook_tracer/
+    test_hook_tracer.py               # 25 unit tests for hook_tracer.py (in-memory OTel exporter, no live stack)
+  integration/
+    test_otel_integration.py          # 4 black-box tests: verifies spans land in Jaeger via HTTP API
+                                      # Skipped if CLAUDE_CODE_ENABLE_TELEMETRY or OTEL_EXPORTER_OTLP_ENDPOINT unset
   evals/
     skills/
       test_clarification.py
@@ -143,13 +162,22 @@ tests/
       test_hook_script_paths.py
       test_hooks_json_structure.py
   hooks/
-    test-dangerous-bash.sh  # Shell-level tests for bash hook script
-    test-dangerous-git.sh   # Shell-level tests for git hook script
-    test-dangerous-sql.sh   # Shell-level tests for SQL hook script
-  test_infrastructure.py    # Infrastructure sanity checks
-  conftest.py
-  run-all.sh                # Runs all test suites
+    test-dangerous-bash.sh            # Shell-level tests for bash hook script
+    test-dangerous-git.sh             # Shell-level tests for git hook script
+    test-dangerous-sql.sh             # Shell-level tests for SQL hook script
+  test_hooks_json_otel_events.py      # 43 structural tests: all 7 hook events wired to hook_tracer.py
+  test_infrastructure.py              # Infrastructure sanity checks
+  conftest.py                         # otel_configured fixture; integration marker registration
+  run-all.sh                          # Runs all test suites
 ```
+
+Run targets (via `Makefile`):
+
+| Target | What runs |
+|--------|-----------|
+| `make test` | Full suite — unit + integration (integration skips if OTel not configured) |
+| `make test-unit` | `tests/hook_tracer/` and `tests/telemetry/` only — no external dependencies |
+| `make test-integration` | `tests/integration/` only — requires live OTel stack |
 
 The `evals/` subtree contains behavioral evaluation tests that verify skill documents, command definitions, and hook configurations have correct structure and content — not just that the Python code runs, but that the factory's instructional content is coherent.
 
