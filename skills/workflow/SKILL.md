@@ -1,5 +1,5 @@
 ---
-name: jsf-workflow
+name: workflow
 description: Software factory master workflow — use when starting or orchestrating a full factory run, coordinating clarification → spec → TDD implementation → validation phases.
 version: 0.1.0
 ---
